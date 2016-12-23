@@ -27,15 +27,17 @@ import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.ImageView;
+
 import com.lyft.android.scissors.CropViewExtensions.CropRequest;
 import com.lyft.android.scissors.CropViewExtensions.LoadRequest;
+
 import java.io.File;
 import java.io.OutputStream;
 
@@ -46,7 +48,6 @@ public class CropView extends ImageView {
 
     private static final int MAX_TOUCH_POINTS = 2;
     private TouchManager touchManager;
-    private CropViewConfig config;
 
     private Paint viewportPaint = new Paint();
     private Paint bitmapPaint = new Paint();
@@ -67,12 +68,12 @@ public class CropView extends ImageView {
     }
 
     void initCropView(Context context, AttributeSet attrs) {
-        config = CropViewConfig.from(context, attrs);
+        CropViewConfig config = CropViewConfig.from(context, attrs);
 
         touchManager = new TouchManager(MAX_TOUCH_POINTS, config);
 
         bitmapPaint.setFilterBitmap(true);
-        setViewportOverlayColor(config.getViewportOverlayColor());
+        viewportPaint.setColor(config.getViewportOverlayColor());
     }
 
     @Override
@@ -110,27 +111,6 @@ public class CropView extends ImageView {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         resetTouchManager();
-    }
-
-    /**
-     * Sets the color of the viewport overlay
-     *
-     * @param viewportOverlayColor The color to use for the viewport overlay
-     */
-    public void setViewportOverlayColor(@ColorInt int viewportOverlayColor) {
-        viewportPaint.setColor(viewportOverlayColor);
-        config.setViewportOverlayColor(viewportOverlayColor);
-    }
-
-    /**
-     * Sets the padding for the viewport overlay
-     *
-     * @param viewportOverlayPadding The new padding of the viewport overlay
-     */
-    public void setViewportOverlayPadding(int viewportOverlayPadding) {
-        config.setViewportOverlayPadding(viewportOverlayPadding);
-        resetTouchManager();
-        invalidate();
     }
 
     /**
@@ -210,7 +190,7 @@ public class CropView extends ImageView {
         return bitmap;
     }
 
-    private void resetTouchManager() {
+    public void resetTouchManager() {
         final boolean invalidBitmap = bitmap == null;
         final int bitmapWidth = invalidBitmap ? 0 : bitmap.getWidth();
         final int bitmapHeight = invalidBitmap ? 0 : bitmap.getHeight();
@@ -219,11 +199,7 @@ public class CropView extends ImageView {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        boolean result = super.dispatchTouchEvent(event);
-
-        if(!isEnabled()) {
-          return result;
-        }
+        super.dispatchTouchEvent(event);
 
         touchManager.onEvent(event);
         invalidate();
@@ -254,6 +230,29 @@ public class CropView extends ImageView {
         final int left = (getRight() - viewportWidth) / 2;
         final int top = (getBottom() - viewportHeight) / 2;
         canvas.translate(-left, -top);
+
+        drawBitmap(canvas);
+
+        return dst;
+    }
+
+    public Bitmap crop(View pView){
+        return this.crop(-pView.getX(), -pView.getY(), pView.getWidth(), pView.getHeight());
+    }
+
+    public Bitmap crop(float pTranslateX, float pTranslateY, int pWidth, int pHeight){
+        if(bitmap == null || pWidth == 0 || pHeight == 0){
+            return null;
+        }
+
+        final Bitmap src = bitmap;
+        final Bitmap.Config srcConfig = src.getConfig();
+        final Bitmap.Config config = srcConfig == null ? Bitmap.Config.ARGB_8888 : srcConfig;
+
+        final Bitmap dst = Bitmap.createBitmap(pWidth, pHeight, config);
+
+        Canvas canvas = new Canvas(dst);
+        canvas.translate(pTranslateX, pTranslateY);
 
         drawBitmap(canvas);
 
@@ -292,6 +291,9 @@ public class CropView extends ImageView {
         return extensions;
     }
 
+    public void setScale(float pScale){
+        this.touchManager.setScale(pScale);
+    }
     /**
      * Optional extensions to perform common actions involving a {@link CropView}
      */
